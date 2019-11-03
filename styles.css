@@ -1,0 +1,63 @@
+sup, span {
+    display: flex;
+    justify-content: center;
+}
+
+sup {
+    vertical-align: super;
+}
+
+.input {
+    width: 100%;
+    height: 300px;
+    border: 1px solid black;
+    margin-bottom: 5%;
+    border-radius: 3px;
+}
+
+.button {
+    background-color: black;
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+    text-transform: capitalize;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    margin-right: 1%;
+
+}
+
+.buttonDigit {
+    grid-template-columns: 1fr 1fr;
+}
+
+.commandButton {
+    display: block;
+}
+
+.button:hover, .buttonPressed {
+    background-color: rgba(34, 42, 110, 0.5);
+}
+
+.char {
+    
+}
+
+.supChar {
+    
+}
+
+.keyboard {
+    width: 100%;
+    height: 100%;
+    border: 1px solid black;
+}
+
+.keyboardRow {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    
+    margin-bottom: 10px;
+}
