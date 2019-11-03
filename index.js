@@ -3,7 +3,12 @@ const SPAN_ELEM = document.createElement("span");
 const SUP_ELEM = document.createElement("sup");
 const TEXT_AREA = document.createElement("textarea")
 
-let __currentLang__ = "RU";
+const getLang = () =>{
+    let lang = localStorage.getItem("lang");
+    return  lang === null ? "RU" : lang;
+}
+
+let __currentLang__ = getLang();//"RU";
 
 const COMMAND_KEYS = {
     CAPS_PRESSED: false,
@@ -154,7 +159,6 @@ class KeyboardButton {
                 input.value += this.__innerText.toUpperCase();
             else 
                 input.value += this.__innerText;
-            //this.__divElem.classList.remove("buttonPressed");
         }
     }
 }
@@ -316,7 +320,6 @@ class Keyboard {
             newNode.className = "keyboardRow";
             newNode = DIV_ELEM.cloneNode();
         }
-        //console.log("all buttons", this.__buttonsBySymbol);
     }
 
     switchLanguage(lang){
@@ -377,6 +380,7 @@ const BUTTONS_ARRAY = () =>{
     return buttons;
 } 
 
+
 function __init__(){
     const BODY = document.querySelector("body");
 
@@ -387,9 +391,8 @@ function __init__(){
     KEYBOARD.switchLanguage(__currentLang__);
     
     function keydownListener(e){
-        //console.log("e =>", e);
-        //console.log("isUpperCase", isUpperCase())
-        console.log(e.keyCode);
+
+        //console.log(e.keyCode);
         if (e.shiftKey){
             COMMAND_KEYS["SHIFT_PRESSED"] = true;
         } else {
@@ -399,6 +402,7 @@ function __init__(){
         if (e.shiftKey && e.altKey){
             __currentLang__ = nextLang(__currentLang__);
             KEYBOARD.switchLanguage(__currentLang__);
+            localStorage.setItem("lang", __currentLang__);
         }
 
         if (e.key.length === 1)
