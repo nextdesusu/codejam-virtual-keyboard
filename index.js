@@ -138,12 +138,23 @@ class KeyboardButton {
         this.__divElem.classList.remove("buttonPressed");
     }
 
+    assignMouseHandlers(){
+        this.__divElem.addEventListener("mousedown", () => {
+            this.__divElem.classList.add("buttonPressed");
+        });
+        this.__divElem.addEventListener("mouseup", () => {
+            this.__divElem.classList.remove("buttonPressed");
+        })
+    }
+
     signOnClick(input){
+        this.assignMouseHandlers();
         this.__divElem.onclick = () => {
             if (isUpperCase())
                 input.value += this.__innerText.toUpperCase();
             else 
                 input.value += this.__innerText;
+            //this.__divElem.classList.remove("buttonPressed");
         }
     }
 }
@@ -195,6 +206,7 @@ class ButtonDigit extends ButtonSymbol {
     }
 
     signOnClick(input){
+        this.assignMouseHandlers();
         this.__divElem.onclick = () => {
             if (isUpperCase()){
                 if (__currentLang__ === "RU"){
@@ -224,6 +236,7 @@ class ButtonCommand extends KeyboardButton {
     }
 
     signOnClick(input){
+        this.assignMouseHandlers();
         if (this.__spAction.func !== undefined)
             this.__divElem.onclick = this.__spAction.func(input);
     }
