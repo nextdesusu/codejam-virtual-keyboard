@@ -8,7 +8,7 @@ const getLang = () =>{
     return  lang === null ? "RU" : lang;
 }
 
-let __currentLang__ = getLang();//"RU";
+let __currentLang__ = getLang();
 
 const COMMAND_KEYS = {
     CAPS_PRESSED: false,
@@ -56,6 +56,11 @@ const SPECIAL_ACTIONS = {
     },
     "tab": {
         realName: "Tab",
+        func: (input) => {
+            return () => {
+                input.value += "\t";
+            }
+        }
     },
     "capslock": {
         realName: "CapsLock",
@@ -101,7 +106,8 @@ const SPECIAL_ACTIONS = {
 };
 
 class KeyboardButton {
-    constructor(){
+    constructor(id){
+        this.__id = id;
         this.__divElem = DIV_ELEM.cloneNode();
         this.__divElem.className = "button";
 
@@ -125,12 +131,8 @@ class KeyboardButton {
         return this.__divElem;
     }
 
-    get allChars() {
-        return {
-            en: this.__enChar,
-            ru: this.__ruChar,
-            uni: this.__uniChar,
-        }
+    get code() {
+        return this.__id;
     }
 
     keyDown(){
@@ -164,8 +166,8 @@ class KeyboardButton {
 }
 
 class ButtonSymbol extends KeyboardButton {
-    constructor(enChar, ruChar){
-        super();
+    constructor(id, enChar, ruChar){
+        super(id);
         this.__divElem.className = `${this.__divElem.className} symbolButton`;
         this.__enChar = enChar;
         this.__ruChar = ruChar;
@@ -191,8 +193,8 @@ class ButtonSymbol extends KeyboardButton {
 }
 
 class ButtonDigit extends ButtonSymbol {
-    constructor(uniChar, ruDigit, enDigit){
-        super(enDigit, ruDigit);
+    constructor(id, uniChar, ruDigit, enDigit){
+        super(id, enDigit, ruDigit);
         this.__divElem.className = `${this.__divElem.className} buttonDigit`;
 
         this.__uniChar = uniChar
@@ -226,8 +228,8 @@ class ButtonDigit extends ButtonSymbol {
 }
 
 class ButtonCommand extends KeyboardButton {
-    constructor(name){
-        super();
+    constructor(id, name){
+        super(id);
         this.__divElem.className = `${this.__divElem.className} commandButton ${name}`;
         this.__innerText = name;
         this.__spanElem.innerText = name;
@@ -255,44 +257,29 @@ class Keyboard {
         bodyElem.appendChild(this.__mainElem);
 
         this.__inputElem = inputElem;
-        this.__buttons = null;
-        this.__buttonsBySymbol = {
-            en: {},
-            ru: {},
-            uni: {}
-        }
+        this.__buttons = {};
         this.__pressed = {};
     }
 
-    getButtonByChar(char){
-        let { en, ru, uni } = this.__buttonsBySymbol;
-
-        if (char in en){
-            return en[char];
-        } else if (char in ru){
-            return ru[char];
-        } else if (char in uni){
-            return uni[char];
-        } 
-
-        return null;
+    getButtonByCode(code){
+        return this.__buttons[code];
     }
 
-    pressButton(char){
-        let button = this.getButtonByChar(char);
+    pressButton(code){
+        let button = this.getButtonByCode(code);
         if (button === null){
             return;
         }
-        this.__pressed[char] = button;
+        this.__pressed[code] = button;
         button.keyDown();
     }
 
-    unpressButton(char){
-        let button = this.getButtonByChar(char);
+    unpressButton(code){
+        let button = this.getButtonByCode(code);
         if (button === null){
             return;
         }
-        delete this.__pressed[char];
+        delete this.__pressed[code];
         button.keyUp();
     }
 
@@ -300,20 +287,16 @@ class Keyboard {
         let pressed = this.__pressed;
         for (let key of Object.keys(pressed)){
             this.unpressButton(pressed[key]);
+            delete pressed[key];
         }
     }
     
     bindButtons(buttonsArr){
-        this.__buttons = buttonsArr;
         let newNode = DIV_ELEM.cloneNode();
         for (let buttonsArray of buttonsArr){
             for (let button of buttonsArray){
-                let chars = button.allChars;
-                for (let key of Object.keys(chars)){
-                    this.__buttonsBySymbol[key][chars[key]] = button;
-                }
+                this.__buttons[button.code] = button;
                 button.signOnClick(this.__inputElem.__mainElem);
-                
                 newNode.appendChild(button.nodeElement);
             }
             this.__mainElem.appendChild(newNode);
@@ -326,11 +309,10 @@ class Keyboard {
         if (lang !== "EN" && lang !== "RU"){
             throw Error(`KEYBOARD: language is not supported ${lang}`);
         }
-        for (let buttonsArray of this.__buttons){
-            for (let button of buttonsArray){
-                if (button.translationNeeded)
-                    button.swapChar(lang);
-            }
+        for (let code of Object.keys(this.__buttons)){
+            let button = this.__buttons[code];
+            if (button.translationNeeded)
+                this.__buttons[code].swapChar(lang);
         }
     }
 }
@@ -349,28 +331,39 @@ class Input {
 
 const BUTTONS_ARRAY = () =>{
     let raw = [
-        ["`:ё:~", "1:!:!", '2:":@', "3:№:#", "4:;:$", "5:%:%","6::^","7:?:&","8:*:*","9:(:(","0:):)","-:_:_", "=:+:+", "backspace"],
-        ["tab", "q:й", "w:ц", "e:у", "r:к", "t:е", "y:н", "u:г", "i:ш", "o:щ", "p:з", "[:х", "]:ъ", "\\:/:|"],
-        ["capslock", "a:ф", "s:ы", "d:в", "f:а", "g:п", "h:р", "j:о", "k:л", "l:д", ";:ж", "\":э", "enter"],
-        ["shift", "z:я", "x:ч", "c:с", "v:м", "b:и", "n:т", "m:ь", ",:б", ".:ю", "arrow up", "shift "],
-        ["ctrl", "win", "alt", "space", "alt ", "ctrl ", "arrow left", "arrow down", "arrow right"]
+        [
+            [192, '`', 'ё', '~'], [49, '1', '!', '!'], [50, '2', '@', '"'], [51, '3', '№', '#'], [52, '4', ';', '$'], [53, '5', '%', '%'], 
+            [54, '6', ':', '^'], [55, '7', '?', '&'], [56, '8', '*', '*'], [57, '9', '(', '('], [48, '0', ')', ')'], [189, '-', '_', '_'], 
+            [187, '=', '+', '+'], [8, "backspace"]
+        ],
+        [
+            [9, "tab"], [81, 'q', 'й'], [87, 'w', 'ц'], [69, 'e', 'у'], [82, 'r', 'к'], [84, 't', 'е'], [89, 'y', 'н'], [85, 'u', 'г'], 
+            [73, 'i', 'ш'], [79, 'o', 'щ'], [80, 'p', 'з'], [219, '[', 'х'], [221, ']', 'ъ'], [220, '\\', '/', '|']
+        ],
+        [
+            [20, "capslock"], [65, 'a', 'ф'], [83, 's', 'ы'], [68, 'd', 'в'], [70, 'f', 'а'], [71, 'g', 'п'], [72, 'h', 'р'], 
+            [74, 'j', 'о'], [75, 'k', 'л'], [76, 'l', 'д'], [186, ';', 'ж'], [222, "'", 'э'], [13, "enter"]
+        ],
+        [
+            [16, "shift"], [90, 'z', 'я'], [88, 'x', 'ч'], [67, 'c', 'с'], [86, 'v', 'м'], [66, 'b', 'и'], [78, 'n', 'т'], [77, 'm', 'ь'], 
+            [188, ',', 'б', '<'], [190, '.', 'ю', '>'], [191, '/', '?', ','], [38, "arrow up"], [19, "shift "]
+        ],
+        [
+            [17, "ctrl"], [91, "win"], [18, "alt"], [32, "space"], [18, "alt "], [17, "ctrl "], [37, "arrow left"], [40, "arrow down"], 
+            [39, "arrow right"]
+        ]
     ];
     let buttons = [];
     let tmp = [];
     for (let srcArr of raw){
         for (let bSrc of srcArr){
-            let src = bSrc.split(":");
             let button;
-            if (src.length === 3){
-                if (src[0] === '6'){
-                    button = new ButtonDigit(src[0], ':', src[2]);
-                } else {
-                    button = new ButtonDigit(...src);
-                }
-            } else if (src.length === 2){
-                button = new ButtonSymbol(...src);
+            if (bSrc.length === 4){
+                button = new ButtonDigit(...bSrc);
+            } else if (bSrc.length === 3){
+                button = new ButtonSymbol(...bSrc);
             } else {
-                button = new ButtonCommand(...src);
+                button = new ButtonCommand(...bSrc);
             }
             tmp.push(button);
         }
@@ -391,7 +384,7 @@ function __init__(){
     KEYBOARD.switchLanguage(__currentLang__);
     
     function keydownListener(e){
-
+        console.log("e=>", e.keyCode, e);
         //console.log(e.keyCode);
         if (e.shiftKey){
             COMMAND_KEYS["SHIFT_PRESSED"] = true;
@@ -405,20 +398,14 @@ function __init__(){
             localStorage.setItem("lang", __currentLang__);
         }
 
-        if (e.key.length === 1)
-            KEYBOARD.pressButton(e.key.toLowerCase());
-        else 
-            KEYBOARD.pressButton(e.code);
+        KEYBOARD.pressButton(e.keyCode);
     }
 
     function keyUpListener(e){
         if (e.code === "CapsLock"){
             COMMAND_KEYS["CAPS_PRESSED"] = !COMMAND_KEYS["CAPS_PRESSED"];
         } 
-        if (e.key.length === 1)
-            KEYBOARD.unpressButton(e.key.toLowerCase());
-        else 
-            KEYBOARD.unpressButton(e.code);
+        KEYBOARD.unpressButton(e.keyCode);
     }
 
     function clickListener(){
