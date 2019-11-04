@@ -3,104 +3,41 @@ const SPAN_ELEM = document.createElement("span");
 const SUP_ELEM = document.createElement("sup");
 const TEXT_AREA = document.createElement("textarea")
 
-const getLang = () =>{
-    let lang = localStorage.getItem("lang");
-    return  lang === null ? "RU" : lang;
-}
-
-let __currentLang__ = getLang();
-
 const COMMAND_KEYS = {
     CAPS_PRESSED: false,
     SHIFT_PRESSED: false,
     ALT_PRESSED: false
 }
 
-const nextLang = (lang) => {
-    switch(lang){
-        case "RU":
-            return "EN";
-        case "EN":
-            return "RU";
-        default:
-            throw Error(`NEXT_LANG: lang is not supported: ${lang}`);
-    }
-}
-
-const isUpperCase = () => {
-    const { CAPS_PRESSED, SHIFT_PRESSED } = COMMAND_KEYS;
-    return CAPS_PRESSED && !SHIFT_PRESSED || !CAPS_PRESSED && SHIFT_PRESSED;
-} 
-
 const SPECIAL_ACTIONS = {
 
     "space": {
-        realName: ' ',
-        func: (input) => {
-            return () => {
+        func: (divElem, input) => {
+            divElem.onclick = () =>{
                 input.value += ' ';
             }
         }
     },
-    "shift": {
-        realName: "ShiftLeft",
-    },
-    "shift ": {
-        realName: "ShiftRight",
-    },
-    "ctrl": {
-        realName: "ControlLeft",
-    },
-    "ctrl ": {
-        realName: "ControlRight",
-    },
     "tab": {
-        realName: "Tab",
-        func: (input) => {
-            return () => {
+        func: (divElem, input) => {
+            divElem.onclick = () =>{
                 input.value += "\t";
             }
         }
     },
-    "capslock": {
-        realName: "CapsLock",
-    },
     "backspace": {
-        realName: "Backspace",
-        func: (input) => {
-            return () => {
+        func: (divElem, input) => {
+            divElem.onclick = () =>{
                 input.value = input.value.slice(0, input.value.length - 1);
             }
         }
     },
     "enter": {
-        realName: "Enter",
-        func: (input) => {
-            return () => {
+        func: (divElem, input) => {
+            divElem.onclick = () =>{
                 input.value += "\n";
             }
         }
-    },
-    "arrow up": {
-        realName: "ArrowUp",
-    },
-    "arrow down": {
-        realName: "ArrowDown",
-    },
-    "arrow left": {
-        realName: "ArrowLeft",
-    },
-    "arrow right": {
-        realName: "ArrowRight",
-    },
-    "win": {
-        realName: "MetaLeft",
-    },
-    "alt": {
-        realName: "AltLeft",
-    },
-    "alt ": {
-        realName: "AltRight",
     },
 
 };
@@ -109,13 +46,11 @@ class KeyboardButton {
     constructor(id){
         this.__id = id;
         this.__divElem = DIV_ELEM.cloneNode();
-        this.__divElem.className = "button";
-
         this.__spanElem = SPAN_ELEM.cloneNode();
-        this.__spanElem.className = "char";
-
         this.__divElem.appendChild(this.__spanElem);
         
+        this.__divElem.className = "button";
+        this.__spanElem.className = "char";
         this.__innerText;
     }
 
@@ -124,6 +59,10 @@ class KeyboardButton {
     }
 
     get translationNeeded(){
+        return false;
+    }
+
+    get isRepeated(){
         return false;
     }
 
@@ -228,23 +167,28 @@ class ButtonDigit extends ButtonSymbol {
 }
 
 class ButtonCommand extends KeyboardButton {
-    constructor(id, name){
+    constructor(id, name, realName){
         super(id);
         this.__divElem.className = `${this.__divElem.className} commandButton ${name}`;
         this.__innerText = name;
+        this.__realName = realName;
         this.__spanElem.innerText = name;
         this.__spAction = SPECIAL_ACTIONS[name];
+    }
 
-        if (this.__spAction !== undefined)
-            this.__uniChar = this.__spAction.realName;
-        else 
-            throw Error(`BUTTON: unknown command ${name}`);
+    get isRepeated(){
+        return this.__realName !== null ? true : false;
+    }
+
+    get fullName(){
+        return this.__realName;
     }
 
     signOnClick(input){
         this.assignMouseHandlers();
-        if (this.__spAction.func !== undefined)
-            this.__divElem.onclick = this.__spAction.func(input);
+        if (this.__spAction !== undefined){
+            this.__spAction.func(this.__divElem, input);
+        }
     }
     
 }
@@ -261,22 +205,27 @@ class Keyboard {
         this.__pressed = {};
     }
 
-    getButtonByCode(code){
-        return this.__buttons[code];
+    getButtonByCode(code, realName){
+        let button = this.__buttons[code];
+        if (button)
+            if (button[realName] !== undefined){
+                return this.__buttons[code][realName];
+        }
+        return button;
     }
 
-    pressButton(code){
-        let button = this.getButtonByCode(code);
-        if (button === null){
+    pressButton(code, realName){
+        let button = this.getButtonByCode(code, realName);
+        if (!button){
             return;
         }
         this.__pressed[code] = button;
         button.keyDown();
     }
 
-    unpressButton(code){
-        let button = this.getButtonByCode(code);
-        if (button === null){
+    unpressButton(code, realName){
+        let button = this.getButtonByCode(code, realName);
+        if (!button){
             return;
         }
         delete this.__pressed[code];
@@ -295,7 +244,15 @@ class Keyboard {
         let newNode = DIV_ELEM.cloneNode();
         for (let buttonsArray of buttonsArr){
             for (let button of buttonsArray){
-                this.__buttons[button.code] = button;
+                if (button.isRepeated){
+                    if (this.__buttons[button.code]){
+                        this.__buttons[button.code][button.fullName] = button;
+                    } else {
+                        this.__buttons[button.code] = {[button.fullName]: button};
+                    }
+                } else {
+                    this.__buttons[button.code] = button;
+                }
                 button.signOnClick(this.__inputElem.__mainElem);
                 newNode.appendChild(button.nodeElement);
             }
@@ -329,50 +286,66 @@ class Input {
     }
 }
 
-const BUTTONS_ARRAY = () =>{
-    let raw = [
-        [
-            [192, '`', 'ё', '~'], [49, '1', '!', '!'], [50, '2', '@', '"'], [51, '3', '№', '#'], [52, '4', ';', '$'], [53, '5', '%', '%'], 
-            [54, '6', ':', '^'], [55, '7', '?', '&'], [56, '8', '*', '*'], [57, '9', '(', '('], [48, '0', ')', ')'], [189, '-', '_', '_'], 
-            [187, '=', '+', '+'], [8, "backspace"]
-        ],
-        [
-            [9, "tab"], [81, 'q', 'й'], [87, 'w', 'ц'], [69, 'e', 'у'], [82, 'r', 'к'], [84, 't', 'е'], [89, 'y', 'н'], [85, 'u', 'г'], 
-            [73, 'i', 'ш'], [79, 'o', 'щ'], [80, 'p', 'з'], [219, '[', 'х'], [221, ']', 'ъ'], [220, '\\', '/', '|']
-        ],
-        [
-            [20, "capslock"], [65, 'a', 'ф'], [83, 's', 'ы'], [68, 'd', 'в'], [70, 'f', 'а'], [71, 'g', 'п'], [72, 'h', 'р'], 
-            [74, 'j', 'о'], [75, 'k', 'л'], [76, 'l', 'д'], [186, ';', 'ж'], [222, "'", 'э'], [13, "enter"]
-        ],
-        [
-            [16, "shift"], [90, 'z', 'я'], [88, 'x', 'ч'], [67, 'c', 'с'], [86, 'v', 'м'], [66, 'b', 'и'], [78, 'n', 'т'], [77, 'm', 'ь'], 
-            [188, ',', 'б', '<'], [190, '.', 'ю', '>'], [191, '/', '?', ','], [38, "arrow up"], [19, "shift "]
-        ],
-        [
-            [17, "ctrl"], [91, "win"], [18, "alt"], [32, "space"], [18, "alt "], [17, "ctrl "], [37, "arrow left"], [40, "arrow down"], 
-            [39, "arrow right"]
-        ]
-    ];
-    let buttons = [];
-    let tmp = [];
-    for (let srcArr of raw){
-        for (let bSrc of srcArr){
-            let button;
-            if (bSrc.length === 4){
-                button = new ButtonDigit(...bSrc);
-            } else if (bSrc.length === 3){
-                button = new ButtonSymbol(...bSrc);
-            } else {
-                button = new ButtonCommand(...bSrc);
-            }
-            tmp.push(button);
-        }
-        buttons.push(tmp);
-        tmp = [];
-    }
-    return buttons;
-} 
+const BUTTONS_ARRAY = [
+    [
+        new ButtonDigit(192, '`', 'ё', '~'), new ButtonDigit(49, '1', '!', '!'), new ButtonDigit(50, '2', '@', '"'), 
+        new ButtonDigit(51, '3', '№', '#'), new ButtonDigit(52, '4', ';', '$'), new ButtonDigit(53, '5', '%', '%'), 
+        new ButtonDigit(54, '6', ':', '^'), new ButtonDigit(55, '7', '?', '&'), new ButtonDigit(56, '8', '*', '*'), 
+        new ButtonDigit(57, '9', '(', '('), new ButtonDigit(48, '0', ')', ')'), new ButtonDigit(189, '-', '_', '_'), 
+        new ButtonDigit(187, '=', '+', '+'), new ButtonCommand(8, "backspace", null)
+    ],
+    [
+        new ButtonCommand(9, "tab", null), new ButtonSymbol(81, 'q', 'й'), new ButtonSymbol(87, 'w', 'ц'), 
+        new ButtonSymbol(69, 'e', 'у'), new ButtonSymbol(82, 'r', 'к'), new ButtonSymbol(84, 't', 'е'), 
+        new ButtonSymbol(89, 'y', 'н'), new ButtonSymbol(85, 'u', 'г'), new ButtonSymbol(73, 'i', 'ш'), 
+        new ButtonSymbol(79, 'o', 'щ'), new ButtonSymbol(80, 'p', 'з'), new ButtonSymbol(219, '[', 'х'), 
+        new ButtonSymbol(221, ']', 'ъ'), new ButtonDigit(220, '\\', '/', '|')
+    ],
+    [
+        new ButtonCommand(20, "capslock", null), new ButtonSymbol(65, 'a', 'ф'), new ButtonSymbol(83, 's', 'ы'), 
+        new ButtonSymbol(68, 'd', 'в'), new ButtonSymbol(70, 'f', 'а'), new ButtonSymbol(71, 'g', 'п'), 
+        new ButtonSymbol(72, 'h', 'р'), new ButtonSymbol(74, 'j', 'о'), new ButtonSymbol(75, 'k', 'л'), 
+        new ButtonSymbol(76, 'l', 'д'), new ButtonSymbol(186, ';', 'ж'), new ButtonSymbol(222, "'", 'э'), 
+        new ButtonCommand(13, "enter", null)
+    ],
+    [
+        new ButtonCommand(16, "shift", "ShiftLeft"), new ButtonSymbol(90, 'z', 'я'), new ButtonSymbol(88, 'x', 'ч'), 
+        new ButtonSymbol(67, 'c', 'с'), new ButtonSymbol(86, 'v', 'м'), new ButtonSymbol(66, 'b', 'и'), 
+        new ButtonSymbol(78, 'n', 'т'), new ButtonSymbol(77, 'm', 'ь'), new ButtonDigit(188, ',', 'б', '<'), 
+        new ButtonDigit(190, '.', 'ю', '>'), new ButtonDigit(191, '/', '?', ','), new ButtonCommand(38, "arrow up", null), 
+        new ButtonCommand(16, "shift", "ShiftRight")
+    ],
+    [
+        new ButtonCommand(17, "ctrl", "ControlLeft"), new ButtonCommand(91, "win", null), 
+        new ButtonCommand(18, "alt", "AltLeft"), new ButtonCommand(32, "space", null), 
+        new ButtonCommand(18, "alt", "AltRight"), new ButtonCommand(17, "ctrl", "ControlRight"), 
+        new ButtonCommand(37, "arrow left", null), new ButtonCommand(40, "arrow down", null), 
+        new ButtonCommand(39, "arrow right", null)
+    ]
+];
 
+const getLang = () =>{
+    let lang = localStorage.getItem("lang");
+    return  lang === null ? "RU" : lang;
+}
+
+const nextLang = (lang) => {
+    switch(lang){
+        case "RU":
+            return "EN";
+        case "EN":
+            return "RU";
+        default:
+            throw Error(`NEXT_LANG: lang is not supported: ${lang}`);
+    }
+}
+
+const isUpperCase = () => {
+    const { CAPS_PRESSED, SHIFT_PRESSED } = COMMAND_KEYS;
+    return CAPS_PRESSED && !SHIFT_PRESSED || !CAPS_PRESSED && SHIFT_PRESSED;
+}
+
+let __currentLang__ = getLang();
 
 function __init__(){
     const BODY = document.querySelector("body");
@@ -380,32 +353,33 @@ function __init__(){
     const inputElem = new Input(BODY);
     const KEYBOARD = new Keyboard(BODY, inputElem);
 
-    KEYBOARD.bindButtons(BUTTONS_ARRAY());
+    KEYBOARD.bindButtons(BUTTONS_ARRAY);
     KEYBOARD.switchLanguage(__currentLang__);
     
     function keydownListener(e){
-        console.log("e=>", e.keyCode, e);
-        //console.log(e.keyCode);
-        if (e.shiftKey){
+        const { keyCode, code, shiftKey, altKey } = e;
+
+        if (shiftKey){
             COMMAND_KEYS["SHIFT_PRESSED"] = true;
         } else {
             COMMAND_KEYS["SHIFT_PRESSED"] = false;
         }
 
-        if (e.shiftKey && e.altKey){
+        if (shiftKey && altKey){
             __currentLang__ = nextLang(__currentLang__);
             KEYBOARD.switchLanguage(__currentLang__);
             localStorage.setItem("lang", __currentLang__);
         }
 
-        KEYBOARD.pressButton(e.keyCode);
+        KEYBOARD.pressButton(keyCode, code);
     }
 
     function keyUpListener(e){
-        if (e.code === "CapsLock"){
+        const { keyCode, code } = e;
+        if (code === "CapsLock"){
             COMMAND_KEYS["CAPS_PRESSED"] = !COMMAND_KEYS["CAPS_PRESSED"];
         } 
-        KEYBOARD.unpressButton(e.keyCode);
+        KEYBOARD.unpressButton(keyCode, code);
     }
 
     function clickListener(){
